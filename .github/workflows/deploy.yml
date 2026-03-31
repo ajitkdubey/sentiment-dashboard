@@ -1,75 +1,41 @@
-name: Deploy to Azure
+name: Deploy to Azure Static Web App
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-
-env:
-  ACR_NAME: openexaacr
-  IMAGE_NAME: sentiment-dashboard
-  RESOURCE_GROUP: openexa-prod
-  CONTAINER_APP_NAME: sentiment-dashboard
-  CONTAINER_APP_ENV: openexa-prod-env
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
 
 jobs:
   build-and-deploy:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
+    name: Build and Deploy
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to Azure
-        uses: azure/login@v2
+      - name: Install API dependencies
+        run: cd api && npm install
+
+      - name: Build and Deploy
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "./public"
+          api_location: "./api"
+          output_location: ""
+          skip_app_build: true
 
-      - name: Login to ACR
-        run: az acr login --name ${{ env.ACR_NAME }}
-
-      - name: Build and push to ACR
-        run: |
-          IMAGE_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          IMAGE_LATEST=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
-          docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
-          docker push $IMAGE_TAG
-          docker push $IMAGE_LATEST
-
-      - name: Deploy to Container App
-        run: |
-          IMAGE_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-          # Check if container app exists
-          EXISTS=$(az containerapp show \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --query "name" -o tsv 2>/dev/null || echo "")
-
-          if [ -z "$EXISTS" ]; then
-            echo "Creating new Container App..."
-            az containerapp create \
-              --name ${{ env.CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --environment ${{ env.CONTAINER_APP_ENV }} \
-              --image $IMAGE_TAG \
-              --target-port 3456 \
-              --ingress external \
-              --min-replicas 0 \
-              --max-replicas 2 \
-              --cpu 0.25 \
-              --memory 0.5Gi \
-              --registry-server ${{ env.ACR_NAME }}.azurecr.io
-          else
-            echo "Updating existing Container App..."
-            az containerapp update \
-              --name ${{ env.CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --image $IMAGE_TAG
-          fi
-
-      - name: Get App URL
-        run: |
-          FQDN=$(az containerapp show \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --query "properties.configuration.ingress.fqdn" -o tsv)
-          echo "🚀 Dashboard live at: https://$FQDN"
+  close-pr:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close PR Environment
+    steps:
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: "close"

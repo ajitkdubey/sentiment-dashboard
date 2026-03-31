@@ -15,30 +15,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - run: npm ci
+      - name: Install API dependencies
+        run: cd api && npm install
 
-      - name: Verify server starts
+      - name: Verify shared module loads
+        run: cd api && node -e "const s = require('./shared'); console.log('✅ Shared module OK, tickers:', s.TICKERS.length)"
+
+      - name: Verify frontend exists
         run: |
-          timeout 15 node server.js &
-          sleep 5
-          curl -sf http://localhost:3456/api/data || exit 1
-          echo "✅ Server starts and responds"
-          kill %1 || true
-
-  docker-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: docker build -t sentiment-dashboard:test .
-
-      - name: Test Docker image
-        run: |
-          docker run -d --name test-dash -p 3456:3456 sentiment-dashboard:test
-          sleep 10
-          curl -sf http://localhost:3456/api/data || exit 1
-          echo "✅ Docker container healthy"
-          docker stop test-dash
+          test -f public/index.html && echo "✅ Frontend OK"
+          test -f staticwebapp.config.json && echo "✅ SWA config OK"

@@ -338,6 +338,8 @@
       try {
         const res = await fetch("/api/data");
         DATA = await res.json();
+        // Handle Azure Functions wrapper (body may be stringified)
+        if (typeof DATA === "string") DATA = JSON.parse(DATA);
         document.getElementById("lastUpdate").textContent =
           DATA.lastUpdate ? `Updated: ${new Date(DATA.lastUpdate).toLocaleTimeString()}` : "";
         renderSummary();
@@ -353,7 +355,7 @@
       btn.disabled = true;
       btn.textContent = "Refreshing...";
       try {
-        await fetch("/api/refresh");
+        await fetch("/api/data?refresh=true");
         await loadData();
       } finally {
         btn.disabled = false;
