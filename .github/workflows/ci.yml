@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +19,15 @@ jobs:
       - name: Install API dependencies
         run: cd api && npm install
 
-      - name: Verify shared module loads
+      - name: Verify API module loads
         run: cd api && node -e "const s = require('./shared'); console.log('✅ Shared module OK, tickers:', s.TICKERS.length)"
 
-      - name: Verify frontend exists
+      - name: Verify function config
+        run: |
+          test -f api/data/function.json && echo "✅ Function config OK"
+          test -f api/host.json && echo "✅ Host config OK"
+
+      - name: Verify frontend
         run: |
           test -f public/index.html && echo "✅ Frontend OK"
-          test -f staticwebapp.config.json && echo "✅ SWA config OK"
+          grep -q "OpenEXA Sentiment Dashboard" public/index.html && echo "✅ Title OK"
