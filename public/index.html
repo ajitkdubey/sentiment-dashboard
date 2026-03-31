@@ -460,15 +460,27 @@
     </div>
   </div>
 
+  <script src="app.js"></script>
   <script>
     let DATA = null;
     let currentTab = "overview";
     let selectedTicker = null;
 
+    // ── Bridge: expose loadData globally so app.js can call it ──
+    // app.js addCustomTicker/removeCustomTicker call loadData()
+    // We define it here and register it on window for app.js to access
+
+    // ── Custom tickers helper ──
+    function getCustomTickerParam() {
+      const custom = (typeof App !== 'undefined' && App.getCustomTickers) ? App.getCustomTickers() : [];
+      return custom.length ? '?tickers=' + custom.join(',') : '';
+    }
+
     // ── Fetch ──
     async function loadData() {
       try {
-        const res = await fetch("/api/data");
+        const param = getCustomTickerParam();
+        const res = await fetch("/api/data" + param);
         DATA = await res.json();
         // Handle Azure Functions wrapper (body may be stringified)
         if (typeof DATA === "string") DATA = JSON.parse(DATA);
@@ -481,13 +493,17 @@
           `<div class="loading">Error loading data: ${e.message}</div>`;
       }
     }
+    // Make loadData available globally for app.js
+    window.loadData = loadData;
 
     async function doRefresh() {
       const btn = document.getElementById("refreshBtn");
       btn.disabled = true;
       btn.textContent = "Refreshing...";
       try {
-        await fetch("/api/data?refresh=true");
+        const param = getCustomTickerParam();
+        const sep = param ? '&' : '?';
+        await fetch("/api/data" + param + (param ? '&' : '?') + "refresh=true");
         await loadData();
       } finally {
         btn.disabled = false;

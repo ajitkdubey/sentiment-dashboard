@@ -63,7 +63,7 @@
     }
     custom.push(s);
     saveCustomTickers(custom);
-    loadData();
+    if (typeof window !== 'undefined' && window.loadData) window.loadData();
     return { success: true, message: "Added!" };
   }
 
@@ -74,7 +74,7 @@
     if (idx === -1) return;
     custom.splice(idx, 1);
     saveCustomTickers(custom);
-    loadData();
+    if (typeof window !== 'undefined' && window.loadData) window.loadData();
   }
 
   // ── Ticker Manager UI ──
