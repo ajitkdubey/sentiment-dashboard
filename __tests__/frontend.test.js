@@ -87,6 +87,7 @@ function setupDOM() {
       <h1>⚡ OpenEXA Sentiment Dashboard</h1>
       <div class="header-right">
         <span class="last-update" id="lastUpdate">Loading...</span>
+        <button class="manage-btn" id="manageTickersBtn">⚙️ Manage Tickers</button>
         <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
       </div>
     </div>
@@ -99,8 +100,38 @@ function setupDOM() {
     <div class="main" id="mainContent">
       <div class="loading"><div class="spinner"></div> Loading data...</div>
     </div>
+    <div class="modal-overlay" id="tickerManagerModal" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>⚙️ Manage Tickers</h2>
+          <button class="modal-close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="ticker-add-row">
+            <input type="text" id="tickerInput" placeholder="Enter ticker symbol..." />
+            <button class="ticker-add-btn">Add</button>
+          </div>
+          <div class="ticker-feedback" id="tickerFeedback"></div>
+          <div id="tickerManagerContent"></div>
+        </div>
+      </div>
+    </div>
   `;
 }
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: jest.fn((key) => store[key] || null),
+    setItem: jest.fn((key, value) => { store[key] = String(value); }),
+    removeItem: jest.fn((key) => { delete store[key]; }),
+    clear: jest.fn(() => { store = {}; }),
+    _getStore: () => store,
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 let App;
 
@@ -240,9 +271,267 @@ describe("Frontend - Helper Functions", () => {
   });
 });
 
-describe("Frontend - Data Loading", () => {
+describe("Frontend - Custom Ticker Management", () => {
   beforeEach(() => {
     setupDOM();
+    localStorageMock.clear();
+    jest.clearAllMocks();
+    App.setDATA(MOCK_DATA);
+    App.setCurrentTab("overview");
+    App.setSelectedTicker(null);
+    global.fetch = jest.fn().mockResolvedValue({
+      json: () => Promise.resolve(MOCK_DATA),
+    });
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+  });
+
+  describe("getCustomTickers", () => {
+    test("returns empty array when nothing stored", () => {
+      expect(App.getCustomTickers()).toEqual([]);
+    });
+
+    test("returns stored tickers", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN", "MSTR"]));
+      expect(App.getCustomTickers()).toEqual(["COIN", "MSTR"]);
+    });
+
+    test("uppercases stored tickers", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["coin", "mstr"]));
+      expect(App.getCustomTickers()).toEqual(["COIN", "MSTR"]);
+    });
+
+    test("filters out empty strings", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN", "", "MSTR"]));
+      expect(App.getCustomTickers()).toEqual(["COIN", "MSTR"]);
+    });
+
+    test("handles invalid JSON gracefully", () => {
+      localStorageMock.getItem.mockReturnValueOnce("not-json");
+      expect(App.getCustomTickers()).toEqual([]);
+    });
+
+    test("handles non-array JSON gracefully", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify("string"));
+      expect(App.getCustomTickers()).toEqual([]);
+    });
+  });
+
+  describe("addCustomTicker", () => {
+    test("adds a valid ticker", () => {
+      const result = App.addCustomTicker("COIN");
+      expect(result).toEqual({ success: true, message: "Added!" });
+      expect(App.getCustomTickers()).toEqual(["COIN"]);
+    });
+
+    test("uppercases input", () => {
+      App.addCustomTicker("coin");
+      expect(App.getCustomTickers()).toEqual(["COIN"]);
+    });
+
+    test("rejects empty string", () => {
+      const result = App.addCustomTicker("");
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Invalid symbol");
+    });
+
+    test("rejects null", () => {
+      const result = App.addCustomTicker(null);
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Invalid symbol");
+    });
+
+    test("rejects invalid characters", () => {
+      const result = App.addCustomTicker("CO IN");
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Invalid symbol");
+    });
+
+    test("rejects default tickers", () => {
+      const result = App.addCustomTicker("AAPL");
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Already exists");
+    });
+
+    test("rejects duplicate custom tickers", () => {
+      App.addCustomTicker("COIN");
+      const result = App.addCustomTicker("COIN");
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Already exists");
+    });
+
+    test("rejects when max tickers reached", () => {
+      // Fill up to max
+      var tickers = [];
+      for (var i = 0; i < App.MAX_TICKERS - App.DEFAULT_TICKER_SYMBOLS.length; i++) {
+        tickers.push("X" + i);
+      }
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(tickers));
+      const result = App.addCustomTicker("ONEMORE");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Maximum");
+    });
+
+    test("triggers loadData on success", () => {
+      App.addCustomTicker("COIN");
+      expect(global.fetch).toHaveBeenCalled();
+    });
+
+    test("accepts ticker with dots (BRK.B)", () => {
+      const result = App.addCustomTicker("BRK.B");
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts ticker with hyphens (BTC-USD)", () => {
+      const result = App.addCustomTicker("BTC-USD");
+      // BTC-USD is not in DEFAULT_TICKER_SYMBOLS (which uses display names like BTC)
+      // but BTC is a default, and BTC-USD with hyphen is valid char
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("removeCustomTicker", () => {
+    test("removes an existing custom ticker", () => {
+      App.addCustomTicker("COIN");
+      jest.clearAllMocks();
+      global.fetch = jest.fn().mockResolvedValue({
+        json: () => Promise.resolve(MOCK_DATA),
+      });
+      App.removeCustomTicker("COIN");
+      expect(App.getCustomTickers()).toEqual([]);
+    });
+
+    test("does nothing for non-existing ticker", () => {
+      App.removeCustomTicker("NONEXIST");
+      // Should not throw
+    });
+
+    test("triggers loadData on removal", () => {
+      App.addCustomTicker("COIN");
+      jest.clearAllMocks();
+      global.fetch = jest.fn().mockResolvedValue({
+        json: () => Promise.resolve(MOCK_DATA),
+      });
+      App.removeCustomTicker("COIN");
+      expect(global.fetch).toHaveBeenCalled();
+    });
+  });
+
+  describe("isDefaultTicker", () => {
+    test("returns true for default tickers", () => {
+      expect(App.isDefaultTicker("AAPL")).toBe(true);
+      expect(App.isDefaultTicker("BTC")).toBe(true);
+      expect(App.isDefaultTicker("SPY")).toBe(true);
+    });
+
+    test("returns false for non-default tickers", () => {
+      expect(App.isDefaultTicker("COIN")).toBe(false);
+      expect(App.isDefaultTicker("MSTR")).toBe(false);
+    });
+
+    test("is case-insensitive", () => {
+      expect(App.isDefaultTicker("aapl")).toBe(true);
+    });
+
+    test("handles null/undefined", () => {
+      expect(App.isDefaultTicker(null)).toBe(false);
+      expect(App.isDefaultTicker(undefined)).toBe(false);
+    });
+  });
+
+  describe("renderTickerManager", () => {
+    test("renders default tickers with lock icon", () => {
+      App.renderTickerManager();
+      const content = document.getElementById("tickerManagerContent");
+      expect(content.innerHTML).toContain("🔒");
+      expect(content.innerHTML).toContain("AAPL");
+      expect(content.innerHTML).toContain("Default");
+    });
+
+    test("renders custom tickers with remove button", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN"]));
+      App.renderTickerManager();
+      const content = document.getElementById("tickerManagerContent");
+      expect(content.innerHTML).toContain("COIN");
+      expect(content.innerHTML).toContain("✕");
+    });
+
+    test("renders all default tickers", () => {
+      App.renderTickerManager();
+      const content = document.getElementById("tickerManagerContent");
+      var items = content.querySelectorAll(".ticker-list-item");
+      expect(items.length).toBe(App.DEFAULT_TICKER_SYMBOLS.length);
+    });
+
+    test("renders both default and custom tickers", () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN", "MSTR"]));
+      App.renderTickerManager();
+      const content = document.getElementById("tickerManagerContent");
+      var items = content.querySelectorAll(".ticker-list-item");
+      expect(items.length).toBe(App.DEFAULT_TICKER_SYMBOLS.length + 2);
+    });
+
+    test("clears feedback on render", () => {
+      var fb = document.getElementById("tickerFeedback");
+      fb.textContent = "Some old message";
+      App.renderTickerManager();
+      expect(fb.textContent).toBe("");
+    });
+  });
+
+  describe("toggleTickerManager", () => {
+    test("shows modal when hidden", () => {
+      var modal = document.getElementById("tickerManagerModal");
+      modal.style.display = "none";
+      App.toggleTickerManager();
+      expect(modal.style.display).toBe("flex");
+    });
+
+    test("hides modal when visible", () => {
+      var modal = document.getElementById("tickerManagerModal");
+      modal.style.display = "flex";
+      App.toggleTickerManager();
+      expect(modal.style.display).toBe("none");
+    });
+  });
+
+  describe("handleAddTicker", () => {
+    test("adds ticker from input and clears it", () => {
+      var input = document.getElementById("tickerInput");
+      input.value = "COIN";
+      App.handleAddTicker();
+      expect(input.value).toBe("");
+      var fb = document.getElementById("tickerFeedback");
+      expect(fb.textContent).toBe("Added!");
+      expect(fb.className).toContain("success");
+    });
+
+    test("shows error for invalid input", () => {
+      var input = document.getElementById("tickerInput");
+      input.value = "";
+      App.handleAddTicker();
+      var fb = document.getElementById("tickerFeedback");
+      expect(fb.textContent).toBe("Invalid symbol");
+      expect(fb.className).toContain("error");
+    });
+
+    test("shows error for duplicate", () => {
+      var input = document.getElementById("tickerInput");
+      input.value = "AAPL";
+      App.handleAddTicker();
+      var fb = document.getElementById("tickerFeedback");
+      expect(fb.textContent).toBe("Already exists");
+    });
+  });
+});
+
+describe("Frontend - Data Loading with Custom Tickers", () => {
+  beforeEach(() => {
+    setupDOM();
+    localStorageMock.clear();
+    jest.clearAllMocks();
     App.setDATA(null);
     App.setCurrentTab("overview");
     App.setSelectedTicker(null);
@@ -251,6 +540,26 @@ describe("Frontend - Data Loading", () => {
 
   afterEach(() => {
     delete global.fetch;
+  });
+
+  test("loadData fetches /api/data with no custom tickers", async () => {
+    global.fetch.mockResolvedValue({
+      json: () => Promise.resolve(MOCK_DATA),
+    });
+    await App.loadData();
+    expect(global.fetch).toHaveBeenCalledWith("/api/data");
+  });
+
+  test("loadData includes custom tickers in URL", async () => {
+    localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN", "MSTR"]));
+    global.fetch.mockResolvedValue({
+      json: () => Promise.resolve(MOCK_DATA),
+    });
+    await App.loadData();
+    var url = global.fetch.mock.calls[0][0];
+    expect(url).toContain("/api/data?tickers=");
+    expect(url).toContain("COIN");
+    expect(url).toContain("MSTR");
   });
 
   test("loadData populates DATA and renders", async () => {
@@ -616,6 +925,7 @@ describe("Frontend - Interaction", () => {
     App.setDATA(MOCK_DATA);
     App.setCurrentTab("overview");
     App.setSelectedTicker(null);
+    localStorageMock.clear();
   });
 
   describe("selectTicker", () => {
@@ -699,6 +1009,7 @@ describe("Frontend - Interaction", () => {
   describe("doRefresh", () => {
     beforeEach(() => {
       global.fetch = jest.fn();
+      localStorageMock.clear();
     });
 
     afterEach(() => {
@@ -713,6 +1024,20 @@ describe("Frontend - Interaction", () => {
       await App.doRefresh();
 
       expect(global.fetch).toHaveBeenCalledWith("/api/data?refresh=true");
+    });
+
+    test("includes custom tickers in refresh URL", async () => {
+      localStorageMock.setItem("sentiment-custom-tickers", JSON.stringify(["COIN"]));
+      global.fetch.mockResolvedValue({
+        json: () => Promise.resolve(MOCK_DATA),
+      });
+
+      await App.doRefresh();
+
+      var firstCall = global.fetch.mock.calls[0][0];
+      expect(firstCall).toContain("refresh=true");
+      expect(firstCall).toContain("tickers=");
+      expect(firstCall).toContain("COIN");
     });
 
     test("disables and re-enables button", async () => {

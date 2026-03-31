@@ -4,10 +4,140 @@
 (function(exports) {
   "use strict";
 
+  // ── Default tickers (must match backend DEFAULT_TICKERS display names) ──
+  var DEFAULT_TICKER_SYMBOLS = [
+    "IAU","IVV","BTC","IBIT","GBTC","FBTC","ARKB","BITB","HODL","BRRR",
+    "AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL","SPY","QQQ","GLD"
+  ];
+  var MAX_TICKERS = 50;
+  var STORAGE_KEY = "sentiment-custom-tickers";
+
   // ── State ──
   var DATA = null;
   var currentTab = "overview";
   var selectedTicker = null;
+
+  // ── Custom Ticker Management ──
+  function getCustomTickers() {
+    try {
+      var stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return [];
+      var arr = JSON.parse(stored);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(function(t) { return typeof t === "string" && t.trim(); })
+                .map(function(t) { return t.trim().toUpperCase(); });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveCustomTickers(arr) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  }
+
+  function isDefaultTicker(symbol) {
+    var s = (symbol || "").trim().toUpperCase();
+    return DEFAULT_TICKER_SYMBOLS.indexOf(s) !== -1;
+  }
+
+  /**
+   * Add a custom ticker. Returns { success: boolean, message: string }
+   */
+  function addCustomTicker(symbol) {
+    if (!symbol || typeof symbol !== "string") {
+      return { success: false, message: "Invalid symbol" };
+    }
+    var s = symbol.trim().toUpperCase();
+    if (!s || !/^[A-Z0-9.\-^=]+$/.test(s)) {
+      return { success: false, message: "Invalid symbol" };
+    }
+    if (isDefaultTicker(s)) {
+      return { success: false, message: "Already exists" };
+    }
+    var custom = getCustomTickers();
+    if (custom.indexOf(s) !== -1) {
+      return { success: false, message: "Already exists" };
+    }
+    if (DEFAULT_TICKER_SYMBOLS.length + custom.length >= MAX_TICKERS) {
+      return { success: false, message: "Maximum " + MAX_TICKERS + " tickers reached" };
+    }
+    custom.push(s);
+    saveCustomTickers(custom);
+    loadData();
+    return { success: true, message: "Added!" };
+  }
+
+  function removeCustomTicker(symbol) {
+    var s = (symbol || "").trim().toUpperCase();
+    var custom = getCustomTickers();
+    var idx = custom.indexOf(s);
+    if (idx === -1) return;
+    custom.splice(idx, 1);
+    saveCustomTickers(custom);
+    loadData();
+  }
+
+  // ── Ticker Manager UI ──
+  function toggleTickerManager() {
+    var modal = document.getElementById("tickerManagerModal");
+    if (!modal) return;
+    var isVisible = modal.style.display === "flex";
+    modal.style.display = isVisible ? "none" : "flex";
+    if (!isVisible) renderTickerManager();
+  }
+
+  function renderTickerManager() {
+    var container = document.getElementById("tickerManagerContent");
+    if (!container) return;
+
+    var custom = getCustomTickers();
+    var feedbackEl = document.getElementById("tickerFeedback");
+    if (feedbackEl) feedbackEl.textContent = "";
+
+    // Build ticker list
+    var html = '<div class="ticker-list">';
+    // Default tickers
+    for (var i = 0; i < DEFAULT_TICKER_SYMBOLS.length; i++) {
+      html += '<div class="ticker-list-item">' +
+        '<span class="ticker-list-symbol">' + DEFAULT_TICKER_SYMBOLS[i] + '</span>' +
+        '<span class="ticker-list-badge default">🔒 Default</span>' +
+      '</div>';
+    }
+    // Custom tickers
+    for (var j = 0; j < custom.length; j++) {
+      html += '<div class="ticker-list-item">' +
+        '<span class="ticker-list-symbol">' + custom[j] + '</span>' +
+        '<button class="ticker-remove-btn" data-symbol="' + custom[j] + '">✕</button>' +
+      '</div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Attach remove handlers
+    var removeBtns = container.querySelectorAll(".ticker-remove-btn");
+    for (var k = 0; k < removeBtns.length; k++) {
+      removeBtns[k].addEventListener("click", function() {
+        removeCustomTicker(this.getAttribute("data-symbol"));
+        renderTickerManager();
+      });
+    }
+  }
+
+  function handleAddTicker() {
+    var input = document.getElementById("tickerInput");
+    var feedback = document.getElementById("tickerFeedback");
+    if (!input) return;
+    var result = addCustomTicker(input.value);
+    if (result.success) {
+      input.value = "";
+      renderTickerManager();
+    }
+    // Set feedback AFTER renderTickerManager (which clears it)
+    if (feedback) {
+      feedback.textContent = result.message;
+      feedback.className = "ticker-feedback " + (result.success ? "success" : "error");
+    }
+  }
 
   // ── Helpers ──
   function sentColor(label) {
@@ -46,7 +176,12 @@
   // ── Fetch ──
   async function loadData() {
     try {
-      var res = await fetch("/api/data");
+      var custom = getCustomTickers();
+      var url = "/api/data";
+      if (custom.length > 0) {
+        url += "?tickers=" + encodeURIComponent(custom.join(","));
+      }
+      var res = await fetch(url);
       DATA = await res.json();
       if (typeof DATA === "string") DATA = JSON.parse(DATA);
       document.getElementById("lastUpdate").textContent =
@@ -64,7 +199,12 @@
     btn.disabled = true;
     btn.textContent = "Refreshing...";
     try {
-      await fetch("/api/data?refresh=true");
+      var custom = getCustomTickers();
+      var url = "/api/data?refresh=true";
+      if (custom.length > 0) {
+        url += "&tickers=" + encodeURIComponent(custom.join(","));
+      }
+      await fetch(url);
       await loadData();
     } finally {
       btn.disabled = false;
@@ -258,6 +398,16 @@
   exports.renderTab = renderTab;
   exports.selectTicker = selectTicker;
   exports.setTab = setTab;
+  // Ticker management
+  exports.getCustomTickers = getCustomTickers;
+  exports.addCustomTicker = addCustomTicker;
+  exports.removeCustomTicker = removeCustomTicker;
+  exports.isDefaultTicker = isDefaultTicker;
+  exports.renderTickerManager = renderTickerManager;
+  exports.toggleTickerManager = toggleTickerManager;
+  exports.handleAddTicker = handleAddTicker;
+  exports.DEFAULT_TICKER_SYMBOLS = DEFAULT_TICKER_SYMBOLS;
+  exports.MAX_TICKERS = MAX_TICKERS;
   // Expose state getters/setters for testing
   exports.getDATA = function() { return DATA; };
   exports.setDATA = function(d) { DATA = d; };

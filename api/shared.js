@@ -4,12 +4,69 @@ const RSSParser = require("rss-parser");
 const sentiment = new Sentiment();
 const rssParser = new RSSParser();
 
-const TICKERS = [
+const DEFAULT_TICKERS = [
   "IAU","IVV","BTC-USD","IBIT","GBTC","FBTC","ARKB","BITB","HODL","BRRR",
   "AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL","SPY","QQQ","GLD"
 ];
 
+// Keep backward-compat alias
+const TICKERS = DEFAULT_TICKERS;
+
 const DISPLAY_NAMES = { "BTC-USD": "BTC" };
+
+// Reverse mapping: display name -> Yahoo symbol (e.g. BTC -> BTC-USD)
+const REVERSE_DISPLAY = {};
+Object.keys(DISPLAY_NAMES).forEach(function(k) {
+  REVERSE_DISPLAY[DISPLAY_NAMES[k]] = k;
+});
+
+const MAX_TICKERS = 50;
+
+/**
+ * Normalize a ticker symbol: uppercase, trim, convert display names to Yahoo symbols.
+ * e.g. "btc" -> "BTC-USD", "aapl" -> "AAPL"
+ */
+function normalizeTicker(t) {
+  if (typeof t !== "string") return "";
+  var s = t.trim().toUpperCase();
+  // If user typed a display name that maps to a Yahoo symbol, convert it
+  if (REVERSE_DISPLAY[s]) return REVERSE_DISPLAY[s];
+  return s;
+}
+
+/**
+ * Read tickers from process.env.TICKERS (comma-separated), falling back to DEFAULT_TICKERS.
+ */
+function getTickersFromEnv() {
+  var envVal = process.env.TICKERS;
+  if (!envVal || !envVal.trim()) return DEFAULT_TICKERS.slice();
+  var raw = envVal.split(",");
+  var seen = {};
+  var result = [];
+  for (var i = 0; i < raw.length; i++) {
+    var t = normalizeTicker(raw[i]);
+    if (!t || seen[t]) continue;
+    seen[t] = true;
+    result.push(t);
+  }
+  return result.length > 0 ? result.slice(0, MAX_TICKERS) : DEFAULT_TICKERS.slice();
+}
+
+/**
+ * Validate and deduplicate a list of tickers. Skips empty strings/duplicates, limits to MAX_TICKERS.
+ */
+function validateTickers(tickers) {
+  var seen = {};
+  var result = [];
+  for (var i = 0; i < tickers.length; i++) {
+    var t = normalizeTicker(tickers[i]);
+    if (!t || seen[t]) continue;
+    seen[t] = true;
+    result.push(t);
+    if (result.length >= MAX_TICKERS) break;
+  }
+  return result;
+}
 
 async function fetchQuote(ticker) {
   const display = DISPLAY_NAMES[ticker] || ticker;
@@ -84,14 +141,20 @@ function extractSource(title) {
   return match ? match[1].trim() : "Unknown";
 }
 
-async function fetchAllData() {
+/**
+ * Fetch all data. Accepts an optional tickers array; falls back to getTickersFromEnv().
+ */
+async function fetchAllData(tickers) {
+  var tickerList = tickers ? validateTickers(tickers) : getTickersFromEnv();
+  if (tickerList.length === 0) tickerList = DEFAULT_TICKERS.slice();
+
   const quotes = [];
-  for (const ticker of TICKERS) {
+  for (const ticker of tickerList) {
     quotes.push(await fetchQuote(ticker));
     await new Promise(r => setTimeout(r, 150));
   }
 
-  const news = await Promise.all(TICKERS.map(fetchNews));
+  const news = await Promise.all(tickerList.map(fetchNews));
 
   const quotesMap = {};
   quotes.forEach((q) => { quotesMap[q.symbol] = q; });
@@ -102,4 +165,9 @@ async function fetchAllData() {
   return { quotes: quotesMap, news: newsMap, lastUpdate: new Date().toISOString() };
 }
 
-module.exports = { fetchAllData, fetchQuote, fetchNews, extractSource, TICKERS, DISPLAY_NAMES };
+module.exports = {
+  fetchAllData, fetchQuote, fetchNews, extractSource,
+  TICKERS, DEFAULT_TICKERS, DISPLAY_NAMES,
+  getTickersFromEnv, validateTickers, normalizeTicker,
+  MAX_TICKERS,
+};

@@ -20,17 +20,20 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Reset global.fetch mock
   global.fetch = jest.fn();
+  // Clean env
+  delete process.env.TICKERS;
 });
 
 afterEach(() => {
   delete global.fetch;
+  delete process.env.TICKERS;
 });
 
-// ── TICKERS & DISPLAY_NAMES ──
+// ── DEFAULT_TICKERS & TICKERS (backward compat) ──
 
-describe("TICKERS", () => {
+describe("DEFAULT_TICKERS", () => {
   test("contains all 20 tickers", () => {
-    expect(shared.TICKERS).toHaveLength(20);
+    expect(shared.DEFAULT_TICKERS).toHaveLength(20);
   });
 
   test("includes key tickers", () => {
@@ -38,7 +41,11 @@ describe("TICKERS", () => {
       "IAU","IVV","BTC-USD","IBIT","GBTC","FBTC","ARKB","BITB","HODL","BRRR",
       "AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL","SPY","QQQ","GLD"
     ];
-    expect(shared.TICKERS).toEqual(expected);
+    expect(shared.DEFAULT_TICKERS).toEqual(expected);
+  });
+
+  test("TICKERS is same as DEFAULT_TICKERS (backward compat)", () => {
+    expect(shared.TICKERS).toBe(shared.DEFAULT_TICKERS);
   });
 });
 
@@ -49,6 +56,118 @@ describe("DISPLAY_NAMES", () => {
 
   test("has only BTC-USD mapping", () => {
     expect(Object.keys(shared.DISPLAY_NAMES)).toEqual(["BTC-USD"]);
+  });
+});
+
+// ── getTickersFromEnv ──
+
+describe("getTickersFromEnv", () => {
+  test("returns DEFAULT_TICKERS when env not set", () => {
+    delete process.env.TICKERS;
+    const result = shared.getTickersFromEnv();
+    expect(result).toEqual(shared.DEFAULT_TICKERS);
+  });
+
+  test("returns DEFAULT_TICKERS when env is empty string", () => {
+    process.env.TICKERS = "";
+    expect(shared.getTickersFromEnv()).toEqual(shared.DEFAULT_TICKERS);
+  });
+
+  test("returns DEFAULT_TICKERS when env is whitespace", () => {
+    process.env.TICKERS = "   ";
+    expect(shared.getTickersFromEnv()).toEqual(shared.DEFAULT_TICKERS);
+  });
+
+  test("parses comma-separated tickers from env", () => {
+    process.env.TICKERS = "AAPL,TSLA,COIN";
+    const result = shared.getTickersFromEnv();
+    expect(result).toEqual(["AAPL", "TSLA", "COIN"]);
+  });
+
+  test("normalizes tickers to uppercase", () => {
+    process.env.TICKERS = "aapl,tsla";
+    expect(shared.getTickersFromEnv()).toEqual(["AAPL", "TSLA"]);
+  });
+
+  test("deduplicates tickers", () => {
+    process.env.TICKERS = "AAPL,TSLA,AAPL";
+    expect(shared.getTickersFromEnv()).toEqual(["AAPL", "TSLA"]);
+  });
+
+  test("skips empty entries", () => {
+    process.env.TICKERS = "AAPL,,TSLA,";
+    expect(shared.getTickersFromEnv()).toEqual(["AAPL", "TSLA"]);
+  });
+
+  test("converts BTC to BTC-USD", () => {
+    process.env.TICKERS = "BTC,AAPL";
+    expect(shared.getTickersFromEnv()).toEqual(["BTC-USD", "AAPL"]);
+  });
+
+  test("limits to MAX_TICKERS", () => {
+    var tickers = [];
+    for (var i = 0; i < 60; i++) tickers.push("T" + i);
+    process.env.TICKERS = tickers.join(",");
+    expect(shared.getTickersFromEnv().length).toBe(shared.MAX_TICKERS);
+  });
+
+  test("falls back to defaults if all entries are empty after parsing", () => {
+    process.env.TICKERS = ",,,";
+    expect(shared.getTickersFromEnv()).toEqual(shared.DEFAULT_TICKERS);
+  });
+});
+
+// ── normalizeTicker ──
+
+describe("normalizeTicker", () => {
+  test("uppercases input", () => {
+    expect(shared.normalizeTicker("aapl")).toBe("AAPL");
+  });
+
+  test("trims whitespace", () => {
+    expect(shared.normalizeTicker("  AAPL  ")).toBe("AAPL");
+  });
+
+  test("converts BTC display name to BTC-USD", () => {
+    expect(shared.normalizeTicker("BTC")).toBe("BTC-USD");
+    expect(shared.normalizeTicker("btc")).toBe("BTC-USD");
+  });
+
+  test("returns empty string for non-string input", () => {
+    expect(shared.normalizeTicker(null)).toBe("");
+    expect(shared.normalizeTicker(undefined)).toBe("");
+    expect(shared.normalizeTicker(123)).toBe("");
+  });
+
+  test("returns empty string for empty input", () => {
+    expect(shared.normalizeTicker("")).toBe("");
+    expect(shared.normalizeTicker("   ")).toBe("");
+  });
+});
+
+// ── validateTickers ──
+
+describe("validateTickers", () => {
+  test("deduplicates tickers", () => {
+    expect(shared.validateTickers(["AAPL", "TSLA", "AAPL"])).toEqual(["AAPL", "TSLA"]);
+  });
+
+  test("skips empty strings", () => {
+    expect(shared.validateTickers(["AAPL", "", "TSLA"])).toEqual(["AAPL", "TSLA"]);
+  });
+
+  test("normalizes tickers", () => {
+    expect(shared.validateTickers(["aapl", "BTC"])).toEqual(["AAPL", "BTC-USD"]);
+  });
+
+  test("limits to MAX_TICKERS", () => {
+    var tickers = [];
+    for (var i = 0; i < 60; i++) tickers.push("T" + i);
+    expect(shared.validateTickers(tickers).length).toBe(shared.MAX_TICKERS);
+  });
+
+  test("returns empty array for all-empty input", () => {
+    expect(shared.validateTickers(["", "", ""])).toEqual([]);
   });
 });
 
@@ -249,7 +368,6 @@ describe("fetchNews", () => {
   test("labels bullish articles (score > 1)", async () => {
     const RSSParser = require("rss-parser");
     const parser = new RSSParser();
-    // "great excellent amazing wonderful" should yield score > 1
     parser.parseURL.mockResolvedValue(makeRSSItems([
       "Great excellent amazing wonderful fantastic superb - Source",
     ]));
@@ -462,13 +580,44 @@ describe("fetchAllData", () => {
     expect(new Date(result.lastUpdate).toISOString()).toBe(result.lastUpdate);
   });
 
-  test("fetches quotes for all 20 tickers", async () => {
+  test("fetches quotes for all 20 default tickers", async () => {
     const result = await shared.fetchAllData();
     expect(Object.keys(result.quotes)).toHaveLength(20);
   });
 
-  test("fetches news for all 20 tickers", async () => {
+  test("fetches news for all 20 default tickers", async () => {
     const result = await shared.fetchAllData();
     expect(Object.keys(result.news)).toHaveLength(20);
+  });
+
+  test("accepts custom tickers array", async () => {
+    const result = await shared.fetchAllData(["AAPL", "TSLA"]);
+    expect(Object.keys(result.quotes)).toHaveLength(2);
+    expect(result.quotes["AAPL"]).toBeDefined();
+    expect(result.quotes["TSLA"]).toBeDefined();
+  });
+
+  test("validates and deduplicates custom tickers", async () => {
+    const result = await shared.fetchAllData(["AAPL", "AAPL", "", "TSLA"]);
+    expect(Object.keys(result.quotes)).toHaveLength(2);
+  });
+
+  test("converts BTC to BTC-USD in custom tickers", async () => {
+    const result = await shared.fetchAllData(["BTC"]);
+    expect(result.quotes["BTC"]).toBeDefined();
+    expect(Object.keys(result.quotes)).toHaveLength(1);
+  });
+
+  test("uses env tickers when no param and env is set", async () => {
+    process.env.TICKERS = "AAPL,TSLA";
+    // Need fresh module to pick up env
+    const result = await shared.fetchAllData();
+    expect(Object.keys(result.quotes)).toHaveLength(2);
+  });
+
+  test("falls back to defaults for empty custom array", async () => {
+    const result = await shared.fetchAllData(["", ""]);
+    // validateTickers returns [] for all-empty, then fetchAllData falls back to defaults
+    expect(Object.keys(result.quotes)).toHaveLength(20);
   });
 }, 120000); // increase timeout for sequential fetches with 150ms delays

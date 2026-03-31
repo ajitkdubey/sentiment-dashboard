@@ -1,8 +1,14 @@
 const mockFetchAllData = jest.fn();
+const mockGetTickersFromEnv = jest.fn();
+const mockValidateTickers = jest.fn();
 
 jest.mock("../shared", () => ({
   fetchAllData: mockFetchAllData,
+  getTickersFromEnv: mockGetTickersFromEnv,
+  validateTickers: mockValidateTickers,
 }));
+
+const DEFAULT_TICKERS = ["AAPL", "MSFT", "BTC-USD"];
 
 const MOCK_RESPONSE = {
   quotes: { AAPL: { symbol: "AAPL", price: 150 } },
@@ -13,14 +19,20 @@ const MOCK_RESPONSE = {
 describe("handler (data/index.js)", () => {
   let handler;
 
-  // We need a fresh module for each test to reset the module-level cache
   beforeEach(() => {
     jest.resetModules();
     mockFetchAllData.mockReset();
+    mockGetTickersFromEnv.mockReset();
+    mockValidateTickers.mockReset();
+
     mockFetchAllData.mockResolvedValue(MOCK_RESPONSE);
-    // Re-require to get fresh cache/cacheTime
+    mockGetTickersFromEnv.mockReturnValue(DEFAULT_TICKERS.slice());
+    mockValidateTickers.mockImplementation(function(arr) { return arr.filter(Boolean); });
+
     jest.mock("../shared", () => ({
       fetchAllData: mockFetchAllData,
+      getTickersFromEnv: mockGetTickersFromEnv,
+      validateTickers: mockValidateTickers,
     }));
     handler = require("../data/index");
   });
@@ -53,7 +65,6 @@ describe("handler (data/index.js)", () => {
     const context2 = makeContext();
     await handler(context2, makeReq());
 
-    // fetchAllData should only be called once (second call uses cache)
     expect(mockFetchAllData).toHaveBeenCalledTimes(1);
 
     const body1 = JSON.parse(context1.res.body);
@@ -99,5 +110,82 @@ describe("handler (data/index.js)", () => {
     expect(context.res.status).toBe(500);
     const body = JSON.parse(context.res.body);
     expect(body.error).toBe("API failure");
+  });
+
+  // ── Custom tickers query param ──
+
+  test("passes custom tickers from query param to fetchAllData", async () => {
+    const context = makeContext();
+    await handler(context, makeReq({ tickers: "COIN,MSTR" }));
+
+    expect(mockValidateTickers).toHaveBeenCalled();
+    // fetchAllData should be called with the merged ticker list
+    expect(mockFetchAllData).toHaveBeenCalledTimes(1);
+    const callArg = mockFetchAllData.mock.calls[0][0];
+    expect(callArg).toEqual(expect.arrayContaining(["COIN", "MSTR"]));
+  });
+
+  test("merges custom tickers with defaults", async () => {
+    const context = makeContext();
+    await handler(context, makeReq({ tickers: "COIN" }));
+
+    expect(mockValidateTickers).toHaveBeenCalled();
+    const validateArg = mockValidateTickers.mock.calls[0][0];
+    // Should contain default tickers + COIN
+    expect(validateArg).toEqual(expect.arrayContaining(DEFAULT_TICKERS));
+    expect(validateArg).toEqual(expect.arrayContaining(["COIN"]));
+  });
+
+  test("different ticker combos get different cache entries", async () => {
+    // Request with no custom tickers
+    const context1 = makeContext();
+    await handler(context1, makeReq());
+
+    // Request with custom tickers - should NOT use the first cache
+    mockValidateTickers.mockImplementation(function(arr) {
+      return [...new Set(arr.filter(Boolean))];
+    });
+
+    const context2 = makeContext();
+    await handler(context2, makeReq({ tickers: "COIN" }));
+
+    // Should have been called twice (different cache keys)
+    expect(mockFetchAllData).toHaveBeenCalledTimes(2);
+  });
+
+  test("same ticker combo uses same cache entry", async () => {
+    const context1 = makeContext();
+    await handler(context1, makeReq({ tickers: "COIN" }));
+
+    const context2 = makeContext();
+    await handler(context2, makeReq({ tickers: "COIN" }));
+
+    // Same tickers = same cache key, so only 1 fetch
+    expect(mockFetchAllData).toHaveBeenCalledTimes(1);
+  });
+
+  test("ignores empty tickers query param", async () => {
+    const context = makeContext();
+    await handler(context, makeReq({ tickers: "" }));
+
+    // Should use defaults, no validateTickers called with extras
+    expect(mockFetchAllData).toHaveBeenCalledTimes(1);
+    const callArg = mockFetchAllData.mock.calls[0][0];
+    expect(callArg).toEqual(DEFAULT_TICKERS);
+  });
+
+  test("trims whitespace from tickers param", async () => {
+    const context = makeContext();
+    await handler(context, makeReq({ tickers: " COIN , MSTR " }));
+
+    expect(mockValidateTickers).toHaveBeenCalled();
+    const validateArg = mockValidateTickers.mock.calls[0][0];
+    expect(validateArg).toEqual(expect.arrayContaining(["COIN", "MSTR"]));
+  });
+
+  test("buildCacheKey sorts tickers for consistent keys", () => {
+    const key1 = handler._buildCacheKey(["AAPL", "COIN", "MSFT"]);
+    const key2 = handler._buildCacheKey(["MSFT", "AAPL", "COIN"]);
+    expect(key1).toBe(key2);
   });
 });
