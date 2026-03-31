@@ -102,4 +102,4 @@ async function fetchAllData() {
   return { quotes: quotesMap, news: newsMap, lastUpdate: new Date().toISOString() };
 }
 
-module.exports = { fetchAllData, TICKERS };
+module.exports = { fetchAllData, fetchQuote, fetchNews, extractSource, TICKERS, DISPLAY_NAMES };

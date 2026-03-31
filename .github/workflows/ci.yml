@@ -19,6 +19,9 @@ jobs:
       - name: Install API dependencies
         run: cd api && npm install
 
+      - name: Install root dependencies
+        run: npm install
+
       - name: Verify API module loads
         run: cd api && node -e "const s = require('./shared'); console.log('✅ Shared module OK, tickers:', s.TICKERS.length)"
 
@@ -31,3 +34,9 @@ jobs:
         run: |
           test -f public/index.html && echo "✅ Frontend OK"
           grep -q "OpenEXA Sentiment Dashboard" public/index.html && echo "✅ Title OK"
+
+      - name: Run API tests with coverage
+        run: cd api && npm test -- --coverage
+
+      - name: Run frontend tests with coverage
+        run: npm test -- --coverage
