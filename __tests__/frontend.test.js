@@ -242,31 +242,31 @@ describe("Frontend - Helper Functions", () => {
 
   describe("heatBg", () => {
     test("returns strong green for score > 2", () => {
-      expect(App.heatBg(3)).toBe("rgba(16,185,129,0.3)");
+      expect(App.heatBg(3)).toBe("rgba(79,154,110,0.3)");
     });
 
     test("returns light green for score > 0.5", () => {
-      expect(App.heatBg(1)).toBe("rgba(16,185,129,0.15)");
+      expect(App.heatBg(1)).toBe("rgba(79,154,110,0.15)");
     });
 
     test("returns strong red for score < -2", () => {
-      expect(App.heatBg(-3)).toBe("rgba(239,68,68,0.3)");
+      expect(App.heatBg(-3)).toBe("rgba(184,85,95,0.3)");
     });
 
     test("returns light red for score < -0.5", () => {
-      expect(App.heatBg(-1)).toBe("rgba(239,68,68,0.15)");
+      expect(App.heatBg(-1)).toBe("rgba(184,85,95,0.15)");
     });
 
     test("returns yellow for neutral score", () => {
-      expect(App.heatBg(0)).toBe("rgba(245,158,11,0.1)");
+      expect(App.heatBg(0)).toBe("rgba(191,160,84,0.1)");
     });
 
     test("returns yellow for score = 0.5", () => {
-      expect(App.heatBg(0.5)).toBe("rgba(245,158,11,0.1)");
+      expect(App.heatBg(0.5)).toBe("rgba(191,160,84,0.1)");
     });
 
     test("returns yellow for score = -0.5", () => {
-      expect(App.heatBg(-0.5)).toBe("rgba(245,158,11,0.1)");
+      expect(App.heatBg(-0.5)).toBe("rgba(191,160,84,0.1)");
     });
   });
 });
@@ -694,8 +694,8 @@ describe("Frontend - Rendering", () => {
 
     test("applies correct background colors", () => {
       const html = App.renderHeatmap();
-      expect(html).toContain("rgba(239,68,68,0.3)");
-      expect(html).toContain("rgba(16,185,129,0.15)");
+      expect(html).toContain("rgba(184,85,95,0.3)");
+      expect(html).toContain("rgba(79,154,110,0.15)");
     });
   });
 
@@ -867,7 +867,7 @@ describe("Frontend - Rendering", () => {
         news: { TEST: { symbol: "TEST", articles: [], aggregate: { avgScore: 0, label: "Neutral", articleCount: 0 } } },
       });
       const html = App.renderHeatmap();
-      expect(html).toContain("rgba(245,158,11,0.1)");
+      expect(html).toContain("rgba(191,160,84,0.1)");
     });
 
     test("renderHeatmap with null aggregate", () => {

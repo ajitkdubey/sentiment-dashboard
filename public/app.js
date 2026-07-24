@@ -166,11 +166,11 @@
   }
 
   function heatBg(score) {
-    if (score > 2) return "rgba(16,185,129,0.3)";
-    if (score > 0.5) return "rgba(16,185,129,0.15)";
-    if (score < -2) return "rgba(239,68,68,0.3)";
-    if (score < -0.5) return "rgba(239,68,68,0.15)";
-    return "rgba(245,158,11,0.1)";
+    if (score > 2) return "rgba(79,154,110,0.3)";
+    if (score > 0.5) return "rgba(79,154,110,0.15)";
+    if (score < -2) return "rgba(184,85,95,0.3)";
+    if (score < -0.5) return "rgba(184,85,95,0.15)";
+    return "rgba(191,160,84,0.1)";
   }
 
   // ── Fetch ──
