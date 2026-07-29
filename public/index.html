@@ -14,7 +14,7 @@
       --strong:   #111D3BCC;
       --nav:      #060C1CCC;
       --hover:    #0F1E3ACC;
-      --text:     #ECF3FF;
+      --text:     var(--muted);
       --muted:    #9AB0D4;
       --meta:     #B8C8E6;
       --caption:  #7F94BA;
@@ -56,7 +56,7 @@
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
       border-bottom: 1px solid var(--border);
-      padding: 4px 30px;
+      padding: 0px 24px;
       display: grid;
       grid-template-columns: auto 1fr auto;
       align-items: center;
@@ -66,8 +66,14 @@
       display: flex;
       align-items: center;
     }
+    .logo-link {
+      display: flex;
+      align-items: center;
+      transition: opacity 0.2s;
+    }
+    .logo-link:hover { opacity: 0.85; }
     .logo {
-      height: 96px;
+      height: 70px;
       width: auto;
       display: block;
     }
@@ -87,11 +93,17 @@
     }
     .header-right {
       display: flex;
-      align-items: center;
-      gap: 16px;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
       justify-self: end;
     }
-    .last-update { color: var(--caption); font-size: 13px; }
+    .header-right-buttons {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .last-update { color: var(--caption); font-size: 11px; }
     .refresh-btn {
       background: #7059FB22;
       border: 1px solid #7059FB66;
@@ -169,6 +181,15 @@
 
     /* Main grid */
     .main { padding: 0 32px 32px; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 16px 32px 24px;
+      font-size: 12px;
+      color: var(--caption);
+      border-top: 1px solid var(--border);
+    }
 
     /* Overview grid */
     .overview-grid {
@@ -480,7 +501,8 @@
         gap: 10px;
         padding: 18px 16px;
       }
-      .header-right { justify-self: center; flex-wrap: wrap; justify-content: center; }
+      .header-right { justify-self: center; align-items: center; }
+      .header-right-buttons { flex-wrap: wrap; justify-content: center; }
       .logo { height: 56px; }
       .header-center h1 { font-size: 19px; }
       .tabs { padding: 12px 16px 0; }
@@ -494,16 +516,20 @@
 <body>
   <div class="header">
     <div class="header-left">
-      <img src="logo.webp" alt="OpenEXA" class="logo">
+      <a href="https://www.openexa.com/" target="_blank" rel="noopener noreferrer" class="logo-link">
+        <img src="logo.webp" alt="OpenEXA" class="logo">
+      </a>
     </div>
     <div class="header-center">
       <h1>Sentiment Dashboard</h1>
-      <div class="header-subtitle">Live news sentiment &amp; price tracking across stocks, ETFs, and crypto tickers</div>
+      <div class="header-subtitle">Live news sentiment &amp; price tracking across stocks and ETFs tickers</div>
     </div>
     <div class="header-right">
+      <div class="header-right-buttons">
+        <button class="manage-btn" id="manageTickersBtn" onclick="App.toggleTickerManager()">⚙️ Manage Tickers</button>
+        <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()">↻ Refresh</button>
+      </div>
       <span class="last-update" id="lastUpdate">Loading...</span>
-      <button class="manage-btn" id="manageTickersBtn" onclick="App.toggleTickerManager()">⚙️ Manage Tickers</button>
-      <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()">↻ Refresh</button>
     </div>
   </div>
 
@@ -518,6 +544,8 @@
   <div class="main" id="mainContent">
     <div class="loading"><div class="spinner"></div> Loading data...</div>
   </div>
+
+  <div class="footer">Sentiment Analysis Dashboard &nbsp;|&nbsp; &copy; 2026 OpenEXA &nbsp;|&nbsp; Not financial advice</div>
 
   <!-- Ticker Manager Modal -->
   <div class="modal-overlay" id="tickerManagerModal">
