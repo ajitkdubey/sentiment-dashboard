@@ -166,11 +166,19 @@
   }
 
   function heatBg(score) {
-    if (score > 2) return "rgba(79,154,110,0.3)";
-    if (score > 0.5) return "rgba(79,154,110,0.15)";
-    if (score < -2) return "rgba(184,85,95,0.3)";
-    if (score < -0.5) return "rgba(184,85,95,0.15)";
-    return "rgba(191,160,84,0.1)";
+    if (score > 2) return "rgba(60,189,122,0.65)";
+    if (score > 0.5) return "rgba(60,189,122,0.4)";
+    if (score < -2) return "rgba(214,80,94,0.65)";
+    if (score < -0.5) return "rgba(214,80,94,0.4)";
+    return "rgba(214,178,74,0.32)";
+  }
+
+  function heatBorder(score) {
+    if (score > 2) return "rgba(60,189,122,1)";
+    if (score > 0.5) return "rgba(60,189,122,0.75)";
+    if (score < -2) return "rgba(214,80,94,1)";
+    if (score < -0.5) return "rgba(214,80,94,0.75)";
+    return "rgba(214,178,74,0.65)";
   }
 
   // ── Fetch ──
@@ -315,7 +323,8 @@
       var score = (n && n.aggregate && n.aggregate.avgScore) || 0;
       var label = (n && n.aggregate && n.aggregate.label) || "N/A";
       var bg = heatBg(score);
-      return '<div class="heat-cell" style="background:' + bg + '" onclick="App.selectTicker(\'' + t + '\')">' +
+      var border = heatBorder(score);
+      return '<div class="heat-cell" style="background:' + bg + ';border-color:' + border + '" onclick="App.selectTicker(\'' + t + '\')">' +
         '<div class="heat-symbol">' + t + '</div>' +
         '<div class="heat-score">' + (score > 0 ? '+' : '') + score + '</div>' +
         '<div class="heat-label">' + label + ' · ' + ((n && n.aggregate && n.aggregate.articleCount) || 0) + ' articles</div>' +
@@ -387,6 +396,7 @@
   exports.timeAgo = timeAgo;
   exports.formatNum = formatNum;
   exports.heatBg = heatBg;
+  exports.heatBorder = heatBorder;
   exports.loadData = loadData;
   exports.doRefresh = doRefresh;
   exports.renderSummary = renderSummary;
