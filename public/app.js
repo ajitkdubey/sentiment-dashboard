@@ -14,8 +14,16 @@
 
   // ── Cross-links to standalone per-ticker dashboards ──
   var EXTERNAL_DASHBOARDS = {
-    BTC: { title: "BTC Max Drawdown Dashboard", url: "https://btc.openexa.com" },
-    IBIT: { title: "IBIT Arb Dashboard", url: "https://ibit.openexa.com" },
+    BTC: {
+      title: "BTC Max Drawdown Dashboard",
+      caption: "Live 5-minute maximum drawdown analysis via Kraken — Low Volatility Bull Trend regime",
+      url: "https://btc.openexa.com",
+    },
+    IBIT: {
+      title: "IBIT Arb Dashboard",
+      caption: "BlackRock iShares Bitcoin Trust ETF &nbsp;|&nbsp; Custodian: Coinbase Custody &nbsp;|&nbsp; Live",
+      url: "https://ibit.openexa.com",
+    },
   };
 
   // ── State ──
@@ -395,6 +403,7 @@
           '<td>' + timeAgo(a.pubDate) + '</td></tr>';
       }).join("")) + '</tbody></table></div>' +
       (EXTERNAL_DASHBOARDS[t] ? '<div class="external-cta"><h3>' + EXTERNAL_DASHBOARDS[t].title + '</h3>' +
+        '<div class="external-cta-caption">' + EXTERNAL_DASHBOARDS[t].caption + '</div>' +
         '<a href="' + EXTERNAL_DASHBOARDS[t].url + '" target="_blank" rel="noopener noreferrer" class="external-cta-btn">Open Dashboard →</a></div>' : '');
   }
 
