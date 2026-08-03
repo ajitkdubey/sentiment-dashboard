@@ -12,6 +12,12 @@
   var MAX_TICKERS = 50;
   var STORAGE_KEY = "sentiment-custom-tickers";
 
+  // ── Cross-links to standalone per-ticker dashboards ──
+  var EXTERNAL_DASHBOARDS = {
+    BTC: { title: "BTC Max Drawdown Dashboard", url: "https://btc.openexa.com" },
+    IBIT: { title: "IBIT Arb Dashboard", url: "https://ibit.openexa.com" },
+  };
+
   // ── State ──
   var DATA = null;
   var currentTab = "overview";
@@ -387,7 +393,9 @@
           '<td><span class="news-sentiment-dot" style="background:' + sentColor(a.sentiment.label) + '"></span> ' + a.sentiment.label + '</td>' +
           '<td>' + a.sentiment.score + '</td>' +
           '<td>' + timeAgo(a.pubDate) + '</td></tr>';
-      }).join("")) + '</tbody></table></div>';
+      }).join("")) + '</tbody></table></div>' +
+      (EXTERNAL_DASHBOARDS[t] ? '<div class="external-cta"><h3>' + EXTERNAL_DASHBOARDS[t].title + '</h3>' +
+        '<a href="' + EXTERNAL_DASHBOARDS[t].url + '" target="_blank" rel="noopener noreferrer" class="external-cta-btn">Open Dashboard →</a></div>' : '');
   }
 
   // ── Exports ──

@@ -336,6 +336,39 @@
     .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
     .stat-value { color: var(--text); font-size: 18px; font-weight: 600; margin-top: 4px; }
 
+    /* External dashboard cross-link */
+    .external-cta {
+      margin-top: 20px;
+      padding: 24px;
+      text-align: center;
+      background: linear-gradient(145deg, var(--strong), var(--panel));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 16px 40px #0006;
+    }
+    .external-cta h3 {
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .external-cta-btn {
+      display: inline-block;
+      background: #7059FB22;
+      border: 1px solid #7059FB66;
+      color: var(--text);
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .external-cta-btn:hover {
+      background: linear-gradient(90deg, var(--violet), var(--blue));
+      border-color: #7DA5FF88;
+    }
+
     /* News table (detail) */
     .news-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
     .news-table th {
@@ -570,6 +603,12 @@
     let DATA = null;
     let currentTab = "overview";
     let selectedTicker = null;
+
+    // ── Cross-links to standalone per-ticker dashboards ──
+    const EXTERNAL_DASHBOARDS = {
+      BTC: { title: "BTC Max Drawdown Dashboard", url: "https://btc.openexa.com" },
+      IBIT: { title: "IBIT Arb Dashboard", url: "https://ibit.openexa.com" },
+    };
 
     // ── Bridge: expose loadData globally so app.js can call it ──
     // app.js addCustomTicker/removeCustomTicker call loadData()
@@ -842,7 +881,12 @@
                 </tr>`).join("")}
             </tbody>
           </table>
-        </div>`;
+        </div>
+        ${EXTERNAL_DASHBOARDS[t] ? `
+        <div class="external-cta">
+          <h3>${EXTERNAL_DASHBOARDS[t].title}</h3>
+          <a href="${EXTERNAL_DASHBOARDS[t].url}" target="_blank" rel="noopener noreferrer" class="external-cta-btn">Open Dashboard →</a>
+        </div>` : ''}`;
     }
 
     // ── Helpers ──
