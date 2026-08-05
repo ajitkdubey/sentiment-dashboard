@@ -20,11 +20,25 @@
       url: "https://btc.openexa.com",
     },
     IBIT: {
-      title: "IBIT Arb Dashboard",
+      title: "IBIT Arb Monitor",
       caption: "BlackRock iShares Bitcoin Trust ETF &nbsp;|&nbsp; Custodian: Coinbase Custody &nbsp;|&nbsp; Live",
       url: "https://ibit.openexa.com",
     },
+    ARKB: {
+      title: "ARKB Dashboard",
+      caption: "ARK 21Shares Bitcoin ETF &nbsp;|&nbsp; Live",
+      url: "https://arkb.openexa.com/",
+    },
   };
+  var DEFAULT_EXTERNAL_DASHBOARD_URL = "https://wfb.openexa.com/";
+  function getExternalDashboard(t) {
+    if (EXTERNAL_DASHBOARDS[t]) return EXTERNAL_DASHBOARDS[t];
+    return {
+      title: t + " Dashboard",
+      caption: "Live price & sentiment analytics for " + t + ", powered by OpenEXA",
+      url: DEFAULT_EXTERNAL_DASHBOARD_URL,
+    };
+  }
 
   // ── State ──
   var DATA = null;
@@ -374,6 +388,7 @@
     var n = DATA.news[t] || {};
     var changeClass = (q.change || 0) >= 0 ? "positive" : "negative";
     var sign = (q.change || 0) >= 0 ? "+" : "";
+    var dash = getExternalDashboard(t);
 
     return '<div class="detail-panel">' +
       '<div class="detail-header"><div>' +
@@ -402,9 +417,9 @@
           '<td>' + a.sentiment.score + '</td>' +
           '<td>' + timeAgo(a.pubDate) + '</td></tr>';
       }).join("")) + '</tbody></table></div>' +
-      (EXTERNAL_DASHBOARDS[t] ? '<div class="external-cta"><h3>' + EXTERNAL_DASHBOARDS[t].title + '</h3>' +
-        '<div class="external-cta-caption">' + EXTERNAL_DASHBOARDS[t].caption + '</div>' +
-        '<a href="' + EXTERNAL_DASHBOARDS[t].url + '" target="_blank" rel="noopener noreferrer" class="external-cta-btn">Open Dashboard →</a></div>' : '');
+      '<div class="external-cta"><h3>' + dash.title + '</h3>' +
+        '<div class="external-cta-caption">' + dash.caption + '</div>' +
+        '<a href="' + dash.url + '" target="_blank" rel="noopener noreferrer" class="external-cta-btn">Open Dashboard →</a></div>';
   }
 
   // ── Exports ──
@@ -414,6 +429,7 @@
   exports.formatNum = formatNum;
   exports.heatBg = heatBg;
   exports.heatBorder = heatBorder;
+  exports.getExternalDashboard = getExternalDashboard;
   exports.loadData = loadData;
   exports.doRefresh = doRefresh;
   exports.renderSummary = renderSummary;
